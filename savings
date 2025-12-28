@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Personal Savings Tracker 2026</title>
+  <!--
+    Personal Savings Tracker (2026)
+    - Single-file HTML with embedded CSS & JS
+    - No backend, no external libraries
+    - Beginner-friendly, clearly commented
+    - Features:
+      1) Savings Overview Dashboard (goal, total, remaining, progress bar)
+      2) Daily Savings Input (date auto-detect, amount, save, anti-duplicate)
+      3) Attendance-Style Savings Calendar (2026)
+      4) LocalStorage persistence
+      5) Savings History Table (running total, sorted)
+      6) Clean, minimalist UI with soft colors, responsive
+      7) Optional Enhancements: monthly summary, streak counter, reset, dark mode
+  -->
+  <style>
+    :root {
+      /* Soft, finance-friendly palette */
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --text: #1f2d3d;
+      --muted: #6b778d;
+
+      --green: #2ecc71;
+      --green-600: #27ae60;
+      --blue: #4c9aff;
+      --blue-600: #1c7ed6;
+      --neutral: #e6e9ef;
+      --neutral-400: #c8ceda;
+
+      --accent: #59c173; /* green/blue gradient vibe */
+      --danger: #e74c3c;
+
+      --ring: rgba(76, 154, 255, 0.35);
+      --shadow: 0 6px 16px rgba(31, 45, 61, 0.08);
+      --radius: 12px;
+
+      --progress-bg: #dfe7f1;
+      --progress-fill: linear-gradient(90deg, #59c173, #4c9aff);
+
+      --today-outline: #1c7ed6;
+
+      --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    /* Dark Mode Variables */
+    body.dark {
+      --bg: #0f141b;
+      --surface: #121922;
+      --text: #e8edf5;
+      --muted: #9aa6b2;
+
+      --neutral: #1f2731;
+      --neutral-400: #2a3440;
+
+      --progress-bg: #1b2430;
+      --ring: rgba(89, 193, 115, 0.35);
+      --shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Global Reset-ish */
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; }
+
+    /* Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .title h1 {
+      font-size: 1.8rem;
+      margin: 0;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .title .sub {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--neutral-400);
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 18px rgba(31,45,61,0.12);
+      border-color: var(--blue);
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+    }
+
+    /* Cards Grid */
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    @media (min-width: 768px) {
+      .grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .grid.cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .grid.cols-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--neutral-400);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 22px rgba(31,45,61,0.12);
+      border-color: var(--blue);
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .value {
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* Inputs */
+    .input-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    label {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    input[type="number"],
+    input[type="date"],
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--neutral-400);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
+
+    /* Progress Bar */
+    .progress {
+      width: 100%;
+      height: 14px;
+      background: var(--progress-bg);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--neutral-400);
+    }
+    .progress .fill {
+      height: 100%;
+      background: var(--progress-fill);
+      width: 0%;
+      transition: width 400ms ease;
+    }
+
+    /* Calendar */
+    .calendar {
+      display: grid;
+      gap: 16px;
+    }
+
+    .month {
+      background: var(--surface);
+      border: 1px solid var(--neutral-400);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .month-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .month-title {
+      font-weight: 800;
+      font-size: 1rem;
+    }
+
+    .weekday-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      padding: 8px 6px;
+      gap: 6px;
+    }
+    .weekday {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .day {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      border: 1px solid var(--neutral-400);
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 0.95rem;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+      position: relative;
+    }
+    .day:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 18px rgba(31,45,61,0.1);
+      border-color: var(--blue);
+    }
+
+    .day.saved {
+      background: #e9f9ef; /* light green tint */
+      border-color: var(--green);
+      color: var(--green-600);
+    }
+
+    .day.not-saved {
+      background: #f1f3f5; /* light gray tint */
+      border-color: var(--neutral-400);
+      color: var(--muted);
+    }
+
+    .day.today {
+      outline: 2px solid var(--today-outline);
+      outline-offset: 2px;
+    }
+
+    .day .badge {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--neutral);
+      color: var(--muted);
+      border: 1px solid var(--neutral-400);
+    }
+
+    /* History Table */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--neutral-400);
+      box-shadow: var(--shadow);
+    }
+
+    .table th, .table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--neutral-400);
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .table th {
+      background: var(--surface);
+      font-weight: 800;
+    }
+
+    .table tbody tr:hover {
+      background: #f4f7fb;
+    }
+    body.dark .table tbody tr:hover {
+      background: #16212c;
+    }
+
+    /* Summary & Streak */
+    .summary-grid {
+      display: grid;
+      gap: 10px;
+    }
+    @media (min-width: 768px) {
+      .summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .summary-item {
+      background: var(--surface);
+      border: 1px solid var(--neutral-400);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-item h4 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+    .summary-item .num {
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+
+    /* Footer Note */
+    footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header with Title, Dark Mode Toggle, Reset Button -->
+    <header>
+      <div class="title">
+        <h1>Personal Savings Tracker</h1>
+        <span class="sub">Year 2026</span>
+      </div>
+      <div class="actions">
+        <button id="darkModeToggle" class="btn" aria-label="Toggle dark mode">Toggle Dark Mode</button>
+        <button id="resetButton" class="btn btn-danger" aria-label="Reset data for 2026">Reset 2026 Data</button>
+      </div>
+    </header>
+
+    <!-- Overview Dashboard -->
+    <section class="grid cols-4" aria-label="Savings overview dashboard">
+      <div class="card">
+        <h3>Savings goal (₱)</h3>
+        <div class="input-group">
+          <input id="goalInput" type="number" min="0" step="0.01" placeholder="Enter your 2026 goal" />
+          <button id="saveGoalBtn" class="btn btn-primary">Save Goal</button>
+        </div>
+        <p class="muted">Set or update your total savings target for 2026.</p>
+      </div>
+
+      <div class="card">
+        <h3>Total savings (₱)</h3>
+        <div class="value" id="totalSavings">₱0.00</div>
+        <p class="muted">Sum of all daily entries.</p>
+      </div>
+
+      <div class="card">
+        <h3>Remaining amount (₱)</h3>
+        <div class="value" id="remainingAmount">₱0.00</div>
+        <p class="muted">Goal minus total savings.</p>
+      </div>
+
+      <div class="card">
+        <h3>Progress</h3>
+        <div class="progress" aria-label="Savings progress">
+          <div class="fill" id="progressFill" style="width:0%"></div>
+        </div>
+        <p class="muted"><span id="progressPercent">0%</span> complete</p>
+      </div>
+    </section>
+
+    <!-- Daily Savings Input -->
+    <section class="grid cols-2" style="margin-top:16px" aria-label="Daily savings input">
+      <div class="card">
+        <h3>Add today's savings</h3>
+        <div class="grid">
+          <div class="input-group">
+            <label for="dateInput">Date</label>
+            <input id="dateInput" type="date" />
+          </div>
+          <div class="input-group">
+            <label for="amountInput">Amount saved (₱)</label>
+            <input id="amountInput" type="number" min="0" step="0.01" placeholder="e.g. 250" />
+          </div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:10px">
+          <button id="saveEntryBtn" class="btn btn-primary">Save today's entry</button>
+          <span id="entryMessage" class="muted" aria-live="polite"></span>
+        </div>
+        <p class="muted" style="margin-top:10px">Duplicate entries for the same date are not allowed.</p>
+      </div>
+
+      <!-- Streak & Monthly Summary -->
+      <div class="card">
+        <h3>Motivation</h3>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <h4>Current saving streak</h4>
+            <div class="num" id="currentStreak">0 days</div>
+            <p class="muted">Consecutive days you've saved.</p>
+          </div>
+          <div class="summary-item">
+            <h4>Monthly summary (₱)</h4>
+            <div class="num" id="currentMonthTotal">₱0.00</div>
+            <p class="muted"><span id="currentMonthName">January</span> total.</p>
+          </div>
+          <div class="summary-item">
+            <h4>Entries count</h4>
+            <div class="num" id="entriesCount">0</div>
+            <p class="muted">Days saved in 2026.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Calendar -->
+    <section style="margin-top:16px" aria-label="Attendance-style savings calendar">
+      <div class="card">
+        <h3>2026 Savings calendar</h3>
+        <p class="muted">Green = saved; Gray = not saved. Today is highlighted.</p>
+        <div id="calendar" class="calendar"></div>
+      </div>
+    </section>
+
+    <!-- Savings History Table -->
+    <section style="margin-top:16px" aria-label="Savings history table">
+      <div class="card">
+        <h3>Savings history</h3>
+        <div style="overflow-x:auto">
+          <table class="table" id="historyTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount (₱)</th>
+                <th>Running total (₱)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Rows injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Built for discipline and motivation. Your data stays on your device via localStorage.
+    </footer>
+  </div>
+
+  <script>
+    // =========================
+    // Configuration & Utilities
+    // =========================
+
+    const YEAR = 2026;
+    const STORAGE_KEYS = {
+      goal: 'savingsGoal2026',
+      records: 'savingsRecords2026', // { 'YYYY-MM-DD': number }
+      theme: 'savingsTheme'          // 'light' | 'dark'
+    };
+
+    // Format numbers into Philippine Peso currency
+    function formatCurrency(amount) {
+      const num = Number(amount || 0);
+      return '₱' + num.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Get today's date in local time
+    function getToday() {
+      const now = new Date();
+      // Ensure we use local timezone and produce YYYY-MM-DD
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // Check if date string is within YEAR
+    function isDateInYear(dateStr, year = YEAR) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.getFullYear() === year;
+    }
+
+    // Clamp date input to YEAR bounds
+    function setDateInputBounds(input) {
+      input.min = `${YEAR}-01-01`;
+      input.max = `${YEAR}-12-31`;
+      const today = getToday();
+      // If today is within YEAR, default to today; else default to Jan 1
+      input.value = isDateInYear(today) ? today : `${YEAR}-01-01`;
+    }
+
+    // Days in month helper
+    function daysInMonth(year, monthIndex /*0-11*/) {
+      return new Date(year, monthIndex + 1, 0).getDate();
+    }
+
+    // =========================
+    // State Management (localStorage)
+    // =========================
+
+    function loadGoal() {
+      const raw = localStorage.getItem(STORAGE_KEYS.goal);
+      const val = raw ? Number(raw) : 0;
+      return isFinite(val) ? val : 0;
+    }
+
+    function saveGoal(val) {
+      const num = Number(val);
+      if (!isFinite(num) || num < 0) return;
+      localStorage.setItem(STORAGE_KEYS.goal, String(num));
+    }
+
+    function loadRecords() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.records);
+        const obj = raw ? JSON.parse(raw) : {};
+        return obj && typeof obj === 'object' ? obj : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveRecords(records) {
+      localStorage.setItem(STORAGE_KEYS.records, JSON.stringify(records || {}));
+    }
+
+    function loadTheme() {
+      const t = localStorage.getItem(STORAGE_KEYS.theme);
+      return t === 'dark' ? 'dark' : 'light';
+    }
+
+    function saveTheme(t) {
+      localStorage.setItem(STORAGE_KEYS.theme, t === 'dark' ? 'dark' : 'light');
+    }
+
+    // =========================
+    // Rendering & Calculations
+    // =========================
+
+    // Compute totals and streaks
+    function computeTotals(records) {
+      const dates = Object.keys(records).filter(isDateInYear).sort();
+      const total = dates.reduce((sum, date) => sum + Number(records[date] || 0), 0);
+
+      // Current streak: count consecutive saved days ending at the most recent saved date or today if saved
+      let streak = 0;
+      if (dates.length > 0) {
+        const lastDateStr = dates[dates.length - 1];
+        const lastDate = new Date(lastDateStr + 'T00:00:00');
+
+        // Start from last saved date and go backwards as long as saved
+        let cursor = new Date(lastDate);
+        while (true) {
+          const y = cursor.getFullYear();
+          const m = String(cursor.getMonth() + 1).padStart(2, '0');
+          const d = String(cursor.getDate()).padStart(2, '0');
+          const key = `${y}-${m}-${d}`;
+          if (records[key]) {
+            streak++;
+            // move to previous day
+            cursor.setDate(cursor.getDate() - 1);
+            if (cursor.getFullYear() !== YEAR) break;
+          } else {
+            break;
+          }
+        }
+      }
+
+      // Current month summary
+      const todayStr = getToday();
+      const todayDate = new Date(todayStr + 'T00:00:00');
+      const monthIndex = isDateInYear(todayStr) ? todayDate.getMonth() : 0; // default January if not 2026
+      const monthName = [
+        'January','February','March','April','May','June',
+        'July','August','September','October','November','December'
+      ][monthIndex];
+
+      let monthTotal = 0;
+      const monthDays = daysInMonth(YEAR, monthIndex);
+      for (let day = 1; day <= monthDays; day++) {
+        const key = `${YEAR}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        if (records[key]) monthTotal += Number(records[key]);
+      }
+
+      return {
+        total,
+        streak,
+        monthTotal,
+        monthName,
+        entriesCount: dates.length
+      };
+    }
+
+    // Update Dashboard UI
+    function renderDashboard() {
+      const goal = loadGoal();
+      const records = loadRecords();
+      const totals = computeTotals(records);
+
+      const totalEl = document.getElementById('totalSavings');
+      const remainEl = document.getElementById('remainingAmount');
+      const fillEl = document.getElementById('progressFill');
+      const percentEl = document.getElementById('progressPercent');
+
+      totalEl.textContent = formatCurrency(totals.total);
+
+      const remaining = Math.max(0, Number(goal || 0) - totals.total);
+      remainEl.textContent = formatCurrency(remaining);
+
+      const pct = goal > 0 ? Math.min(100, Math.round((totals.total / goal) * 100)) : 0;
+      fillEl.style.width = pct + '%';
+      percentEl.textContent = pct + '%';
+
+      // Summary
+      document.getElementById('currentStreak').textContent = `${totals.streak} ${totals.streak === 1 ? 'day' : 'days'}`;
+      document.getElementById('currentMonthTotal').textContent = formatCurrency(totals.monthTotal);
+      document.getElementById('currentMonthName').textContent = totals.monthName;
+      document.getElementById('entriesCount').textContent = String(totals.entriesCount);
+    }
+
+    // Build Calendar for YEAR
+    function renderCalendar() {
+      const calendar = document.getElementById('calendar');
+      calendar.innerHTML = '';
+
+      const records = loadRecords();
+      const todayStr = getToday();
+      const todayInYear = isDateInYear(todayStr);
+
+      const months = [
+        'January','February','March','April','May','June',
+        'July','August','September','October','November','December'
+      ];
+      const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+      for (let m = 0; m < 12; m++) {
+        const monthBox = document.createElement('div');
+        monthBox.className = 'month';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'month-header';
+        const title = document.createElement('div');
+        title.className = 'month-title';
+        title.textContent = `${months[m]} ${YEAR}`;
+        header.appendChild(title);
+
+        monthBox.appendChild(header);
+
+        // Weekday row
+        const weekRow = document.createElement('div');
+        weekRow.className = 'weekday-row';
+        weekdays.forEach(w => {
+          const wd = document.createElement('div');
+          wd.className = 'weekday';
+          wd.textContent = w;
+          weekRow.appendChild(wd);
+        });
+        monthBox.appendChild(weekRow);
+
+        // Days grid
+        const grid = document.createElement('div');
+        grid.className = 'days';
+
+        // Determine first day-of-week and total days
+        const firstDay = new Date(YEAR, m, 1).getDay(); // 0=Sun..6=Sat
+        const totalDays = daysInMonth(YEAR, m);
+
+        // Empty cells before first day
+        for (let i = 0; i < firstDay; i++) {
+          const empty = document.createElement('div');
+          empty.className = 'day not-saved';
+          empty.style.visibility = 'hidden'; // keep grid structure clean
+          grid.appendChild(empty);
+        }
+
+        // Actual day cells
+        for (let day = 1; day <= totalDays; day++) {
+          const dStr = `${YEAR}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const cell = document.createElement('div');
+          cell.className = 'day';
+          cell.textContent = day;
+
+          // Mark saved / not-saved
+          if (records[dStr]) {
+            cell.classList.add('saved');
+            // Badge for amount
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = formatCurrency(records[dStr]);
+            cell.appendChild(badge);
+          } else {
+            cell.classList.add('not-saved');
+          }
+
+          // Highlight today
+          if (todayInYear && dStr === todayStr) {
+            cell.classList.add('today');
+          }
+
+          grid.appendChild(cell);
+        }
+
+        monthBox.appendChild(grid);
+        calendar.appendChild(monthBox);
+      }
+    }
+
+    // Render History Table with Running Totals
+    function renderHistory() {
+      const tbody = document.querySelector('#historyTable tbody');
+      tbody.innerHTML = '';
+
+      const records = loadRecords();
+      const dates = Object.keys(records).filter(isDateInYear).sort();
+
+      let running = 0;
+      dates.forEach(date => {
+        const amount = Number(records[date] || 0);
+        running += amount;
+
+        const tr = document.createElement('tr');
+
+        const tdDate = document.createElement('td');
+        tdDate.textContent = date;
+
+        const tdAmount = document.createElement('td');
+        tdAmount.textContent = formatCurrency(amount);
+
+        const tdRunning = document.createElement('td');
+        tdRunning.textContent = formatCurrency(running);
+
+        tr.appendChild(tdDate);
+        tr.appendChild(tdAmount);
+        tr.appendChild(tdRunning);
+        tbody.appendChild(tr);
+      });
+    }
+
+    // =========================
+    // Event Handlers
+    // =========================
+
+    function handleSaveGoal() {
+      const val = Number(document.getElementById('goalInput').value);
+      if (!isFinite(val) || val < 0) {
+        alert('Please enter a valid non-negative goal amount.');
+        return;
+      }
+      saveGoal(val);
+      renderDashboard();
+    }
+
+    function handleSaveEntry() {
+      const dateEl = document.getElementById('dateInput');
+      const amountEl = document.getElementById('amountInput');
+      const messageEl = document.getElementById('entryMessage');
+
+      const date = dateEl.value;
+      const amount = Number(amountEl.value);
+
+      // Validate date
+      if (!date || !isDateInYear(date)) {
+        messageEl.textContent = `Please select a date within ${YEAR}.`;
+        return;
+      }
+      // Validate amount
+      if (!isFinite(amount) || amount <= 0) {
+        messageEl.textContent = 'Please enter a valid amount greater than 0.';
+        return;
+      }
+
+      const records = loadRecords();
+      if (records[date]) {
+        // Prevent duplicate entries for the same date
+        messageEl.textContent = 'Entry for this date already exists. Duplicates are not allowed.';
+        return;
+      }
+
+      // Save
+      records[date] = amount;
+      saveRecords(records);
+
+      // Clear amount input, keep date
+      amountEl.value = '';
+
+      // Feedback
+      messageEl.textContent = `Saved ${formatCurrency(amount)} for ${date}.`;
+
+      // Re-render UI
+      renderDashboard();
+      renderCalendar();
+      renderHistory();
+    }
+
+    function handleReset() {
+      const confirmReset = confirm('Reset all 2026 data? This will clear your goal and all daily savings records. This action cannot be undone.');
+      if (!confirmReset) return;
+
+      localStorage.removeItem(STORAGE_KEYS.goal);
+      localStorage.removeItem(STORAGE_KEYS.records);
+
+      // Re-render and clear inputs
+      document.getElementById('goalInput').value = '';
+      setDateInputBounds(document.getElementById('dateInput'));
+      document.getElementById('amountInput').value = '';
+      document.getElementById('entryMessage').textContent = '';
+
+      renderDashboard();
+      renderCalendar();
+      renderHistory();
+    }
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.body.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+      }
+    }
+
+    function handleToggleDarkMode() {
+      const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+      applyTheme(next);
+      saveTheme(next);
+    }
+
+    // =========================
+    // Initialization
+    // =========================
+
+    function initInputs() {
+      // Goal preset
+      const goal = loadGoal();
+      document.getElementById('goalInput').value = goal ? String(goal) : '';
+
+      // Date bounds and default
+      setDateInputBounds(document.getElementById('dateInput'));
+    }
+
+    function initEvents() {
+      document.getElementById('saveGoalBtn').addEventListener('click', handleSaveGoal);
+      document.getElementById('saveEntryBtn').addEventListener('click', handleSaveEntry);
+      document.getElementById('resetButton').addEventListener('click', handleReset);
+      document.getElementById('darkModeToggle').addEventListener('click', handleToggleDarkMode);
+    }
+
+    function initTheme() {
+      const theme = loadTheme();
+      applyTheme(theme);
+    }
+
+    function init() {
+      initTheme();
+      initInputs();
+      initEvents();
+
+      renderDashboard();
+      renderCalendar();
+      renderHistory();
+    }
+
+    // Kick off
+    init();
+  </script>
+</body>
+</html>
